@@ -11,14 +11,22 @@ WSB Merito Warszawa | Informatyka | Rok 1
 
 `python -m venv .venv`
 
-3. Zainstalowanie niezbędnych modułów:
+3. Aktywacja wirtualnego środowiska
+
+- Windows:
+`.venv\Scripts\activate`
+
+- Linux/MacOS:
+`source .venv/bin/activate`
+
+4. Zainstalowanie niezbędnych modułów:
 
 `pip install -r requirements.txt`
 
-4. Utworzenie nowego brancha:
+5. Utworzenie nowego brancha:
 
 `git branch [nazwa]`
 
-5. Zmiana na nowego brancha:
+6. Zmiana na nowego brancha:
 
 `git checkout [nazwa]`
