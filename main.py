@@ -24,6 +24,7 @@ class Button:
     def is_clicked(self, event):
         return event.type == pygame.MOUSEBUTTONDOWN and self.is_hovered
 
+
 def main():
     pygame.init()
 
@@ -91,8 +92,8 @@ def main():
     button_height = 60
     button_x = (WIDTH - button_width) // 2
     start_button = Button(button_x, HEIGHT // 2, button_width, button_height, "Start", BUTTON_COLOR, BUTTON_HOVER_COLOR)
-    settings_button = Button(button_x, HEIGHT // 2 + 100, button_width, button_height, "Settings", BUTTON_COLOR, BUTTON_HOVER_COLOR)
-    quit_button = Button(button_x, HEIGHT // 2 + 200, button_width, button_height, "Quit", BUTTON_COLOR, BUTTON_HOVER_COLOR)
+    settings_button = Button(button_x, HEIGHT // 2 + 100, button_width, button_height, "Ustawienia", BUTTON_COLOR, BUTTON_HOVER_COLOR)
+    quit_button = Button(button_x, HEIGHT // 2 + 200, button_width, button_height, "Wyjdź", BUTTON_COLOR, BUTTON_HOVER_COLOR)
     buttons = [start_button, settings_button, quit_button]
 
     running = True
@@ -113,7 +114,7 @@ def main():
                     started = True
                 elif settings_button.is_clicked(event):
                     print("Settings button pressed")
-                    # TODO: open settings menu
+                    # TODO: otworzyć menu ustawień
                 elif quit_button.is_clicked(event):
                     running = False
 
@@ -140,9 +141,10 @@ def main():
 
     if started:
         print("Game start requested (Start button pressed).")
-        # TODO: call game start function
+        # TODO: rozpocząć grę
     pygame.quit()
     sys.exit()
+
 
 if __name__ == "__main__":
     main()
