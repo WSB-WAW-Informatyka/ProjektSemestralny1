@@ -32,7 +32,7 @@ quality_setting = "high"
 def main():
     pygame.init()
 
-    VERSION: str = "0.0.1"
+    VERSION: str = "0.0.2"
 
     WIDTH: int = 1920
     HEIGHT: int = 1080
