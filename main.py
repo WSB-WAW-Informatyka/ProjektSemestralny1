@@ -136,17 +136,17 @@ class Button:
         return event.type == pygame.MOUSEBUTTONDOWN and self.is_hovered
 
 
-# GLOBALNE (dla patcha jakości)
+# GLOBALNE
 quality_setting = "high"
 
 
 def main():
     pygame.init()
 
-    VERSION: str = "0.0.2"
+    VERSION: str = "0.3"
 
-    WIDTH: int = 1920
-    HEIGHT: int = 1080
+    WIDTH: int = 1280
+    HEIGHT: int = 720
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("Giereczka")
     clock = pygame.time.Clock()
@@ -200,7 +200,13 @@ def main():
         "high": "Wysoka",
         "language_title": "Język",
         "pl": "Polski",
-        "en": "Angielski"
+        "en": "Angielski",
+        "pause": "PAUZA",
+        "continue": "Kontynuuj",
+        "restart": "Restart",
+        "main_menu": "Menu główne",
+        "game_over": "KONIEC GRY",
+        "retry": "Ponów"
     }
 
     LANG_EN: dict[str] = {
@@ -217,7 +223,13 @@ def main():
         "high": "High",
         "language_title": "Language",
         "pl": "Polish",
-        "en": "English"
+        "en": "English",
+        "pause": "PAUSE",
+        "continue": "Continue",
+        "restart": "Restart",
+        "main_menu": "Main Menu",
+        "game_over": "GAME OVER",
+        "retry": "Retry"
     }
 
     current_lang: dict[str] = LANG_PL
@@ -251,11 +263,22 @@ def main():
         quality_exit
     ]
 
-    # język
+    # JĘZYK
     lang_pl_btn = Button(bx, HEIGHT // 2, button_w, button_h, "pl", BUTTON_COLOR, BUTTON_HOVER_COLOR)
     lang_en_btn = Button(bx, HEIGHT // 2 + 100, button_w, button_h, "en", BUTTON_COLOR, BUTTON_HOVER_COLOR)
     lang_exit_btn = Button(bx, HEIGHT // 2 + 200, button_w, button_h, "exit", BUTTON_COLOR, BUTTON_HOVER_COLOR)
     language_buttons = [lang_pl_btn, lang_en_btn, lang_exit_btn]
+
+    # MENU PAUZY
+    pause_continue = Button(bx, HEIGHT // 2, button_w, button_h, "continue", BUTTON_COLOR, BUTTON_HOVER_COLOR)
+    pause_restart = Button(bx, HEIGHT // 2 + 100, button_w, button_h, "restart", BUTTON_COLOR, BUTTON_HOVER_COLOR)
+    pause_menu = Button(bx, HEIGHT // 2 + 200, button_w, button_h, "main_menu", BUTTON_COLOR, BUTTON_HOVER_COLOR)
+    pause_buttons = [pause_continue, pause_restart, pause_menu]
+
+    # MENU GAME OVER
+    game_over_retry = Button(bx, HEIGHT // 2, button_w, button_h, "retry", BUTTON_COLOR, BUTTON_HOVER_COLOR)
+    game_over_menu = Button(bx, HEIGHT // 2 + 100, button_w, button_h, "main_menu", BUTTON_COLOR, BUTTON_HOVER_COLOR)
+    game_over_buttons = [game_over_retry, game_over_menu]
 
     current_screen = "main"
 
@@ -265,121 +288,179 @@ def main():
     running: bool = True
     started: bool = False
 
-    while running and not started:
-        mouse = pygame.mouse.get_pos()
+    while running:
+        while running and not started:
+            mouse = pygame.mouse.get_pos()
 
-        if current_screen == "main":
-            for b in main_buttons: b.update(mouse)
-        elif current_screen == "settings":
-            for b in settings_buttons: b.update(mouse)
-        elif current_screen == "quality":
-            for b in quality_buttons: b.update(mouse)
-        elif current_screen == "language":
-            for b in language_buttons: b.update(mouse)
+            if current_screen == "main":
+                for b in main_buttons: b.update(mouse)
+            elif current_screen == "settings":
+                for b in settings_buttons: b.update(mouse)
+            elif current_screen == "quality":
+                for b in quality_buttons: b.update(mouse)
+            elif current_screen == "language":
+                for b in language_buttons: b.update(mouse)
 
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if current_screen == "main":
-                    if start_button.is_clicked(event):
-                        started = True
-                    elif settings_button.is_clicked(event):
-                        current_screen = "settings"
-                    elif quit_button.is_clicked(event):
-                        running = False
-
-                elif current_screen == "settings":
-                    if quality_button.is_clicked(event):
-                        current_screen = "quality"
-                    elif language_button.is_clicked(event):
-                        current_screen = "language"
-                    elif settings_exit_button.is_clicked(event):
-                        current_screen = "main"
-
-                elif current_screen == "quality":
-                    if quality_low.is_clicked(event):
-                        quality_setting = "low"
-                    elif quality_high.is_clicked(event):
-                        quality_setting = "high"
-                    elif quality_exit.is_clicked(event):
-                        current_screen = "settings"
-
-                elif current_screen == "language":
-                    if lang_pl_btn.is_clicked(event):
-                        current_lang = LANG_PL
-                    elif lang_en_btn.is_clicked(event):
-                        current_lang = LANG_EN
-                    elif lang_exit_btn.is_clicked(event):
-                        current_screen = "settings"
-
-        if background:
-            screen.blit(background, (0, 0))
-        else:
-            screen.fill(BG_COLOR)
-        
-        if current_screen == "main":
-            title = title_font.render(current_lang["title"], True, (240, 240, 240))
-            screen.blit(title, ((WIDTH - title.get_width()) // 2, HEIGHT // 4))
-            for b in main_buttons:
-                b.draw(screen, button_font, current_lang)
-
-        elif current_screen == "settings":
-            title = title_font.render(current_lang["settings_title"], True, (240, 240, 240))
-            screen.blit(title, ((WIDTH - title.get_width()) // 2, HEIGHT // 4))
-            for b in settings_buttons:
-                b.draw(screen, button_font, current_lang)
-
-        elif current_screen == "quality":
-            title = title_font.render(current_lang["quality_title"], True, (240, 240, 240))
-            screen.blit(title, ((WIDTH - title.get_width()) // 2, HEIGHT // 4))
-            for b in quality_buttons:
-                b.draw(screen, button_font, current_lang)
-
-        elif current_screen == "language":
-            title = title_font.render(current_lang["language_title"], True, (240, 240, 240))
-            screen.blit(title, ((WIDTH - title.get_width()) // 2, HEIGHT // 4))
-            for b in language_buttons:
-                b.draw(screen, button_font, current_lang)
-
-        version_font = pygame.font.SysFont("arial", 48)
-        version_surf = version_font.render(f"v{VERSION}", True, (0, 0, 0))
-        screen.blit(version_surf, (20, HEIGHT - 60))
-
-        pygame.display.flip()
-        clock.tick(60)
-
-    # GAME LOOP
-    if started and running:
-        game = SnakeGame(WIDTH, HEIGHT)
-        game_over = False
-        
-        while running and not game_over:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE:
-                        running = False
-                    else:
-                        game.handle_input(event)
+
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if current_screen == "main":
+                        if start_button.is_clicked(event):
+                            started = True
+                        elif settings_button.is_clicked(event):
+                            current_screen = "settings"
+                        elif quit_button.is_clicked(event):
+                            running = False
+
+                    elif current_screen == "settings":
+                        if quality_button.is_clicked(event):
+                            current_screen = "quality"
+                        elif language_button.is_clicked(event):
+                            current_screen = "language"
+                        elif settings_exit_button.is_clicked(event):
+                            current_screen = "main"
+
+                    elif current_screen == "quality":
+                        if quality_low.is_clicked(event):
+                            quality_setting = "low"
+                        elif quality_high.is_clicked(event):
+                            quality_setting = "high"
+                        elif quality_exit.is_clicked(event):
+                            current_screen = "settings"
+
+                    elif current_screen == "language":
+                        if lang_pl_btn.is_clicked(event):
+                            current_lang = LANG_PL
+                        elif lang_en_btn.is_clicked(event):
+                            current_lang = LANG_EN
+                        elif lang_exit_btn.is_clicked(event):
+                            current_screen = "settings"
+
+            if background:
+                screen.blit(background, (0, 0))
+            else:
+                screen.fill(BG_COLOR)
             
-            game_over = game.update()
-            game.draw(screen)
-            
-            score_font = pygame.font.SysFont("arial", 36)
-            score_surf = score_font.render(f"Score: {game.score}", True, (240, 240, 240))
-            screen.blit(score_surf, (20, 20))
-            
+            if current_screen == "main":
+                title = title_font.render(current_lang["title"], True, (240, 240, 240))
+                screen.blit(title, ((WIDTH - title.get_width()) // 2, HEIGHT // 4))
+                for b in main_buttons:
+                    b.draw(screen, button_font, current_lang)
+
+            elif current_screen == "settings":
+                title = title_font.render(current_lang["settings_title"], True, (240, 240, 240))
+                screen.blit(title, ((WIDTH - title.get_width()) // 2, HEIGHT // 4))
+                for b in settings_buttons:
+                    b.draw(screen, button_font, current_lang)
+
+            elif current_screen == "quality":
+                title = title_font.render(current_lang["quality_title"], True, (240, 240, 240))
+                screen.blit(title, ((WIDTH - title.get_width()) // 2, HEIGHT // 4))
+                for b in quality_buttons:
+                    b.draw(screen, button_font, current_lang)
+
+            elif current_screen == "language":
+                title = title_font.render(current_lang["language_title"], True, (240, 240, 240))
+                screen.blit(title, ((WIDTH - title.get_width()) // 2, HEIGHT // 4))
+                for b in language_buttons:
+                    b.draw(screen, button_font, current_lang)
+
+            version_font = pygame.font.SysFont("arial", 48)
+            version_surf = version_font.render(f"v{VERSION}", True, (0, 0, 0))
+            screen.blit(version_surf, (20, HEIGHT - 60))
+
             pygame.display.flip()
             clock.tick(60)
+
+    # GAME LOOP
+        if started and running:
+            game = SnakeGame(WIDTH, HEIGHT)
+            game_over = False
+            is_paused = False
+            return_to_menu = False
+            
+            while running and not return_to_menu:
+                mouse = pygame.mouse.get_pos()
+                
+                if is_paused:
+                    for b in pause_buttons:
+                        b.update(mouse)
+                
+                if game_over:
+                    for b in game_over_buttons:
+                        b.update(mouse)
+                
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        running = False
+                    elif event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_ESCAPE and not is_paused and not game_over:
+                            is_paused = True
+                        elif not is_paused and not game_over:
+                            game.handle_input(event)
+                    
+                    if is_paused and event.type == pygame.MOUSEBUTTONDOWN:
+                        if pause_continue.is_clicked(event):
+                            is_paused = False
+                        elif pause_restart.is_clicked(event):
+                            game = SnakeGame(WIDTH, HEIGHT)
+                            game_over = False
+                            is_paused = False
+                        elif pause_menu.is_clicked(event):
+                            return_to_menu = True
+                    
+                    if game_over and event.type == pygame.MOUSEBUTTONDOWN:
+                        if game_over_retry.is_clicked(event):
+                            game = SnakeGame(WIDTH, HEIGHT)
+                            game_over = False
+                        elif game_over_menu.is_clicked(event):
+                            return_to_menu = True
+                
+                if not is_paused and not game_over:
+                    game_over = game.update()
+                
+                game.draw(screen)
+                
+                score_font = pygame.font.SysFont("arial", 36)
+                score_surf = score_font.render(f"Score: {game.score}", True, (240, 240, 240))
+                screen.blit(score_surf, (20, 20))
+                
+                if is_paused:
+                    overlay = pygame.Surface((WIDTH, HEIGHT))
+                    overlay.set_alpha(150)
+                    overlay.fill((0, 0, 0))
+                    screen.blit(overlay, (0, 0))
+                    
+                    pause_title = title_font.render(current_lang["pause"], True, (240, 240, 240))
+                    screen.blit(pause_title, ((WIDTH - pause_title.get_width()) // 2, HEIGHT // 4))
+                    
+                    for b in pause_buttons:
+                        b.draw(screen, button_font, current_lang)
+                
+                if game_over:
+                    overlay = pygame.Surface((WIDTH, HEIGHT))
+                    overlay.set_alpha(150)
+                    overlay.fill((0, 0, 0))
+                    screen.blit(overlay, (0, 0))
+                    
+                    game_over_title = title_font.render(current_lang["game_over"], True, (240, 100, 100))
+                    screen.blit(game_over_title, ((WIDTH - game_over_title.get_width()) // 2, HEIGHT // 4))
+                    
+                    for b in game_over_buttons:
+                        b.draw(screen, button_font, current_lang)
+                
+                pygame.display.flip()
+                clock.tick(60)
+            
+            started = False
 
     pygame.quit()
     sys.exit()
 
 
-# --- SYSTEM JAKOŚCI ---
+# SYSTEM JAKOŚCI
 def get_scale_from_quality(q):
     if q == "low":
         return 0.4
