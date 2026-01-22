@@ -24,12 +24,57 @@ class SnakeGame:
         
     def create_obstacles(self):
         obstacles = []
-        for x in range(5, 15):
-            obstacles.append((x, 10))
-        for y in range(15, 25):
-            obstacles.append((20, y))
-        for x in range(25, 35):
-            obstacles.append((x, 20))
+        target_walls = random.randint(5, 10)
+        walls_created = 0
+        max_attempts = 50
+        attempts = 0
+        
+        while walls_created < target_walls and attempts < max_attempts:
+            attempts += 1
+            
+            # Random starting position
+            start_x = random.randint(2, self.grid_width - 3)
+            start_y = random.randint(2, self.grid_height - 3)
+            
+            # Wall length between 3 and 12
+            wall_length = random.randint(3, 12)
+            
+            # Generate a random walk (wall can bend)
+            wall_tiles = [(start_x, start_y)]
+            current_x, current_y = start_x, start_y
+            
+            for _ in range(wall_length - 1):
+                # Choose a random direction: up, down, left, right
+                # Bias towards continuing in the same direction for more natural walls
+                direction = random.choice([(0, -1), (0, 1), (-1, 0), (1, 0)] * 3 + [random.choice([(0, -1), (0, 1), (-1, 0), (1, 0)])])
+                
+                next_x = current_x + direction[0]
+                next_y = current_y + direction[1]
+                
+                # Keep within bounds with safety margin
+                if 2 <= next_x < self.grid_width - 2 and 2 <= next_y < self.grid_height - 2:
+                    wall_tiles.append((next_x, next_y))
+                    current_x, current_y = next_x, next_y
+            
+            # Check if this wall intersects with existing obstacles
+            intersects = False
+            for tile in wall_tiles:
+                if tile in obstacles:
+                    intersects = True
+                    break
+            
+            # Also ensure wall doesn't overlap with snake starting area
+            snake_center = (self.grid_width // 2, self.grid_height // 2)
+            for tile in wall_tiles:
+                if abs(tile[0] - snake_center[0]) <= 3 and abs(tile[1] - snake_center[1]) <= 3:
+                    intersects = True
+                    break
+            
+            # If no intersection, add the wall
+            if not intersects:
+                obstacles.extend(wall_tiles)
+                walls_created += 1
+        
         return obstacles
     
     def spawn_food(self):
@@ -148,7 +193,7 @@ def main():
     pygame.init()
     pygame.mixer.init()
 
-    VERSION: str = "0.3"
+    VERSION: str = "0.5"
 
     WIDTH: int = 1280
     HEIGHT: int = 720
