@@ -9,72 +9,169 @@ class SnakeGame:
         self.width = width
         self.height = height
         self.tile_size = 30
-        self.grid_width = width // self.tile_size
-        self.grid_height = height // self.tile_size
+        self.viewport_width = width // self.tile_size 
+        self.viewport_height = height // self.tile_size
+        self.grid_width = self.viewport_width * 3 
+        self.grid_height = self.viewport_height * 3
         
         self.snake = [(self.grid_width // 2, self.grid_height // 2)]
         self.direction = (1, 0)
         self.next_direction = (1, 0)
         self.obstacles = self.create_obstacles()
-        self.food = self.spawn_food()
+        self.foods = [self.spawn_food() for _ in range(5)]
+        self.food_spawn_times = {food: time.time() for food in self.foods}
         self.score = 0
         self.move_counter = 0
         self.move_interval = 5
         self.food_eaten = False
         
+        # Głód
+        self.hunger = 100
+        self.hunger_decay_rate = 0.08
+        self.food_spoil_time = 8
+        self.food_despawn_time = 15
+        self.max_food_value = 40
+        self.min_food_value = 10
+        
     def create_obstacles(self):
         obstacles = []
-        target_walls = random.randint(5, 10)
-        walls_created = 0
-        max_attempts = 50
-        attempts = 0
+        snake_center = (self.grid_width // 2, self.grid_height // 2)
         
-        while walls_created < target_walls and attempts < max_attempts:
-            attempts += 1
-            
-            # Random starting position
-            start_x = random.randint(2, self.grid_width - 3)
-            start_y = random.randint(2, self.grid_height - 3)
-            
-            # Wall length between 3 and 12
-            wall_length = random.randint(3, 12)
-            
-            # Generate a random walk (wall can bend)
-            wall_tiles = [(start_x, start_y)]
-            current_x, current_y = start_x, start_y
-            
-            for _ in range(wall_length - 1):
-                # Choose a random direction: up, down, left, right
-                # Bias towards continuing in the same direction for more natural walls
-                direction = random.choice([(0, -1), (0, 1), (-1, 0), (1, 0)] * 3 + [random.choice([(0, -1), (0, 1), (-1, 0), (1, 0)])])
-                
-                next_x = current_x + direction[0]
-                next_y = current_y + direction[1]
-                
-                # Keep within bounds with safety margin
-                if 2 <= next_x < self.grid_width - 2 and 2 <= next_y < self.grid_height - 2:
-                    wall_tiles.append((next_x, next_y))
-                    current_x, current_y = next_x, next_y
-            
-            # Check if this wall intersects with existing obstacles
-            intersects = False
-            for tile in wall_tiles:
-                if tile in obstacles:
-                    intersects = True
-                    break
-            
-            # Also ensure wall doesn't overlap with snake starting area
-            snake_center = (self.grid_width // 2, self.grid_height // 2)
-            for tile in wall_tiles:
-                if abs(tile[0] - snake_center[0]) <= 3 and abs(tile[1] - snake_center[1]) <= 3:
-                    intersects = True
-                    break
-            
-            # If no intersection, add the wall
-            if not intersects:
-                obstacles.extend(wall_tiles)
-                walls_created += 1
+        BUSH_PRESETS = [
+            [(0, 0), (1, 0)],
+            [(0, 0), (0, 1)],
+            [(0, 0), (1, 1)],
+            [(0, 0), (1, 0), (0, 1), (1, 1)],
+            [(0, 0), (1, 0), (2, 0), (1, 1)],
+            [(0, 0), (0, 1), (0, 2), (1, 1)],
+            [(0, 0), (1, 0), (2, 0), (1, 1), (1, 2)],
+            [(0, 0), (1, 0), (-1, 0), (0, 1), (0, 2)],
+        ]
         
+        WATER_PRESETS = [
+            [(0, 0), (1, 0)],
+            [(0, 0), (0, 1)],
+            [(0, 0), (1, 1)],
+            [(0, 0), (1, 0), (0, 1), (1, 1)],
+            [(0, 0), (1, 0), (2, 0), (1, 1)],
+            [(0, 0), (0, 1), (0, 2), (1, 1)],
+            [(0, 0), (1, 0), (2, 0), (0, 1), (1, 1)],
+            [(0, 0), (0, 1), (0, 2), (-1, 1), (1, 0)],
+        ]
+        
+        obstacle_set = set(obstacles)
+        
+        bush_attempts = 0
+        max_bush_attempts = 200
+        bushes_placed = 0
+        
+        while bushes_placed < 12 and bush_attempts < max_bush_attempts:
+            bush_preset = random.choice(BUSH_PRESETS)
+            bush_x = random.randint(10, self.grid_width - 11)
+            bush_y = random.randint(10, self.grid_height - 11)
+            
+            if abs(bush_x - snake_center[0]) > 10 and abs(bush_y - snake_center[1]) > 10:
+                too_close = False
+                for offset_x, offset_y in bush_preset:
+                    nx, ny = bush_x + offset_x, bush_y + offset_y
+                    if 0 <= nx < self.grid_width and 0 <= ny < self.grid_height:
+                        for existing_x, existing_y in obstacle_set:
+                            if abs(nx - existing_x) <= 3 and abs(ny - existing_y) <= 3:
+                                too_close = True
+                                break
+                    if too_close:
+                        break
+                
+                if not too_close:
+                    for offset_x, offset_y in bush_preset:
+                        nx, ny = bush_x + offset_x, bush_y + offset_y
+                        if 0 <= nx < self.grid_width and 0 <= ny < self.grid_height and (nx, ny) not in obstacle_set:
+                            obstacle_set.add((nx, ny))
+                    
+                    bushes_placed += 1
+            
+            bush_attempts += 1
+        
+        water_attempts = 0
+        max_water_attempts = 200
+        water_placed = 0
+        
+        while water_placed < 10 and water_attempts < max_water_attempts:
+            puddle_preset = random.choice(WATER_PRESETS)
+            puddle_x = random.randint(10, self.grid_width - 11)
+            puddle_y = random.randint(10, self.grid_height - 11)
+            
+            if abs(puddle_x - snake_center[0]) > 10 and abs(puddle_y - snake_center[1]) > 10:
+                too_close = False
+                for offset_x, offset_y in puddle_preset:
+                    nx, ny = puddle_x + offset_x, puddle_y + offset_y
+                    if 0 <= nx < self.grid_width and 0 <= ny < self.grid_height:
+                        for existing_x, existing_y in obstacle_set:
+                            if abs(nx - existing_x) <= 4 and abs(ny - existing_y) <= 4:
+                                too_close = True
+                                break
+                    if too_close:
+                        break
+                
+                if not too_close:
+                    for offset_x, offset_y in puddle_preset:
+                        nx, ny = puddle_x + offset_x, puddle_y + offset_y
+                        if 0 <= nx < self.grid_width and 0 <= ny < self.grid_height and (nx, ny) not in obstacle_set:
+                            obstacle_set.add((nx, ny))
+                    
+                    water_placed += 1
+            
+            water_attempts += 1
+        
+        for river_num in range(3):
+            start_pos = random.choice(['left', 'right', 'top', 'bottom'])
+            if start_pos == 'left':
+                river_x, river_y = 1, random.randint(8, self.grid_height - 9)
+                direction = (1, 0)
+            elif start_pos == 'right':
+                river_x, river_y = self.grid_width - 2, random.randint(8, self.grid_height - 9)
+                direction = (-1, 0)
+            elif start_pos == 'top':
+                river_x, river_y = random.randint(8, self.grid_width - 9), 1
+                direction = (0, 1)
+            else:
+                river_x, river_y = random.randint(8, self.grid_width - 9), self.grid_height - 2
+                direction = (0, -1)
+            
+            river_length = random.randint(20, 40)
+            for step in range(river_length):
+                river_width = random.randint(1, 2)
+                
+                if direction[0] != 0:
+                    for w in range(river_width):
+                        nx, ny = river_x, river_y + w - river_width // 2
+                        if 0 <= nx < self.grid_width and 0 <= ny < self.grid_height:
+                            if (nx, ny) not in obstacle_set and (abs(nx - snake_center[0]) > 8 or abs(ny - snake_center[1]) > 8):
+                                obstacle_set.add((nx, ny))
+                else:
+                    for w in range(river_width):
+                        nx, ny = river_x + w - river_width // 2, river_y
+                        if 0 <= nx < self.grid_width and 0 <= ny < self.grid_height:
+                            if (nx, ny) not in obstacle_set and (abs(nx - snake_center[0]) > 8 or abs(ny - snake_center[1]) > 8):
+                                obstacle_set.add((nx, ny))
+                
+                river_x += direction[0]
+                river_y += direction[1]
+                
+                if random.random() < 0.1:
+                    if direction[0] != 0:
+                        new_dy = random.choice([-1, 0, 1])
+                        if new_dy != 0:
+                            direction = (direction[0], new_dy)
+                    else:
+                        new_dx = random.choice([-1, 0, 1])
+                        if new_dx != 0:
+                            direction = (new_dx, direction[1])
+                
+                river_x = max(1, min(river_x, self.grid_width - 2))
+                river_y = max(1, min(river_y, self.grid_height - 2))
+        
+        obstacles = list(obstacle_set)
         return obstacles
     
     def spawn_food(self):
@@ -98,6 +195,28 @@ class SnakeGame:
     def update(self):
         self.move_counter += 1
         self.food_eaten = False
+        
+        self.hunger -= self.hunger_decay_rate
+        if self.hunger < 0:
+            self.hunger = 0
+        
+        if self.hunger <= 0:
+            return True  # Śmierć głodowa
+        
+        foods_to_remove = []
+        for food in self.foods:
+            if time.time() - self.food_spawn_times[food] >= self.food_despawn_time:
+                foods_to_remove.append(food)
+        
+        for food in foods_to_remove:
+            self.foods.remove(food)
+            del self.food_spawn_times[food]
+        
+        while len(self.foods) < 5:
+            new_food = self.spawn_food()
+            self.foods.append(new_food)
+            self.food_spawn_times[new_food] = time.time()
+        
         if self.move_counter < self.move_interval:
             return False
         
@@ -109,57 +228,233 @@ class SnakeGame:
         
         if (new_head[0] < 0 or new_head[0] >= self.grid_width or
             new_head[1] < 0 or new_head[1] >= self.grid_height):
-            return True  # Game over
+            return True
         
         if new_head in self.snake:
-            return True  # Game over
+            return True
         
         if new_head in self.obstacles:
-            return True  # Game over
+            return True
         
         self.snake.insert(0, new_head)
         
-        if new_head == self.food:
-            self.score += 10
-            self.food_eaten = True
-            self.food = self.spawn_food()
+        food_eaten_index = None
+        for i, food in enumerate(self.foods):
+            if new_head == food:
+                self.score += 10
+                self.food_eaten = True
+                
+                food_age = time.time() - self.food_spawn_times[food]
+                spoil_ratio = min(food_age / self.food_spoil_time, 1.0)  # 0 to 1
+                food_value = self.max_food_value - (self.max_food_value - self.min_food_value) * spoil_ratio
+                
+                self.hunger = min(self.hunger + food_value, 100)
+                
+                food_eaten_index = i
+                break
+        
+        if food_eaten_index is not None:
+            old_food = self.foods.pop(food_eaten_index)
+            del self.food_spawn_times[old_food]
+            new_food = self.spawn_food()
+            self.foods.append(new_food)
+            self.food_spawn_times[new_food] = time.time()
         else:
             self.snake.pop()
         
         return False
     
     def draw(self, surface):
-        surface.fill((20, 20, 40))
+        snake_head_x, snake_head_y = self.snake[0]
+        camera_x = snake_head_x - self.viewport_width // 2
+        camera_y = snake_head_y - self.viewport_height // 2
         
-        grid_color = (40, 40, 60)
-        for x in range(0, self.width, self.tile_size):
-            pygame.draw.line(surface, grid_color, (x, 0), (x, self.height), 1)
-        for y in range(0, self.height, self.tile_size):
-            pygame.draw.line(surface, grid_color, (0, y), (self.width, y), 1)
+        camera_x = max(-1, min(camera_x, self.grid_width - self.viewport_width + 1))
+        camera_y = max(-1, min(camera_y, self.grid_height - self.viewport_height + 1))
         
-        obstacle_color = (100, 100, 150)
+        # Kolor podłoża
+        ground_color = (110, 145, 65)
+        
+        start_x = int(camera_x)
+        start_y = int(camera_y)
+        end_x = int(camera_x + self.viewport_width) + 1
+        end_y = int(camera_y + self.viewport_height) + 1
+        
+        for x in range(start_x, end_x + 1):
+            for y in range(start_y, end_y + 1):
+                screen_x = (x - camera_x) * self.tile_size
+                screen_y = (y - camera_y) * self.tile_size
+                
+                if -self.tile_size < screen_x < self.width and -self.tile_size < screen_y < self.height:
+                    pygame.draw.rect(surface, ground_color,
+                                    (screen_x, screen_y, self.tile_size, self.tile_size))
+        
+        # Kolor trawy
+        grass_color = (80, 120, 40)
+        for x in range(start_x, end_x + 1):
+            for y in range(start_y, end_y + 1):
+                screen_x = (x - camera_x) * self.tile_size
+                screen_y = (y - camera_y) * self.tile_size
+                
+                if -self.tile_size < screen_x < self.width and -self.tile_size < screen_y < self.height:
+                    noise1 = ((x * 73 + y * 97) % 256) / 256.0
+                    noise2 = ((x * 151 + y * 163) % 256) / 256.0
+                    noise3 = ((x * 211 + y * 227) % 256) / 256.0
+                    combined_noise = (noise1 + noise2 * 0.5 + noise3 * 0.25) / 1.75
+                    
+                    if combined_noise > 0.55:
+                        num_tufts = 1 + int(combined_noise * 2)
+                        for tuft in range(num_tufts):
+                            tuft_seed = (x * 151 + y * 157 + tuft * 163) % 10
+                            tuft_x = screen_x + 2 + (tuft_seed * 3) % (self.tile_size - 4)
+                            tuft_y = screen_y + 2 + ((tuft_seed * 5) % (self.tile_size - 4))
+                            tuft_width = 2 + (tuft_seed % 2)
+                            tuft_height = 4 + (tuft_seed % 3)
+                            pygame.draw.rect(surface, grass_color, (tuft_x, tuft_y, tuft_width, tuft_height))
+        
+        boundary_color = (0, 0, 0)
+        
+        for x in range(int(camera_x) - 2, int(camera_x + self.viewport_width) + 3):
+            for y in range(int(camera_y) - 2, int(camera_y + self.viewport_height) + 3):
+                is_boundary = (x < 0 or x >= self.grid_width or 
+                              y < 0 or y >= self.grid_height)
+                
+                if is_boundary:
+                    screen_x = (x - camera_x) * self.tile_size
+                    screen_y = (y - camera_y) * self.tile_size
+                    
+                    pygame.draw.rect(surface, boundary_color,
+                                    (screen_x, screen_y, self.tile_size, self.tile_size))
+        
+        # Kolor siatki
+        grid_color = (100, 120, 80)
+        for x in range(start_x, end_x + 1):
+            screen_x = (x - camera_x) * self.tile_size
+            pygame.draw.line(surface, grid_color, (screen_x, 0), (screen_x, self.height), 1)
+        for y in range(start_y, end_y + 1):
+            screen_y = (y - camera_y) * self.tile_size
+            pygame.draw.line(surface, grid_color, (0, screen_y), (self.width, screen_y), 1)
+        
+        # Kolory przeszkód
+        tree_color = (34, 139, 34) # na razie niewykorzystane
+        bush_color = (85, 107, 47)
+        water_color = (65, 105, 225)
+        
         for obs in self.obstacles:
-            pygame.draw.rect(surface, obstacle_color,
-                           (obs[0] * self.tile_size + 1, obs[1] * self.tile_size + 1,
-                            self.tile_size - 2, self.tile_size - 2))
+            screen_x = (obs[0] - camera_x) * self.tile_size
+            screen_y = (obs[1] - camera_y) * self.tile_size
+            if -self.tile_size < screen_x < self.width and -self.tile_size < screen_y < self.height:
+                color_hash = (obs[0] + obs[1]) % 3
+                if color_hash == 0:
+                    color = tree_color
+                elif color_hash == 1:
+                    color = bush_color
+                else:
+                    color = water_color
+                
+                pygame.draw.rect(surface, color,
+                               (screen_x + 1, screen_y + 1,
+                                self.tile_size - 2, self.tile_size - 2))
         
         food_color = (255, 200, 0)
-        pygame.draw.rect(surface, food_color,
-                        (self.food[0] * self.tile_size + 2, self.food[1] * self.tile_size + 2,
-                         self.tile_size - 4, self.tile_size - 4))
+        for food in self.foods:
+            food_age = time.time() - self.food_spawn_times[food]
+            food_remaining_ratio = max(1 - (food_age / self.food_despawn_time), 0)  # 1 to 0
+            
+            max_food_size = self.tile_size - 4
+            current_food_size = max_food_size * food_remaining_ratio
+            offset = (max_food_size - current_food_size) / 2
+            
+            if current_food_size > 0:
+                screen_x = (food[0] - camera_x) * self.tile_size
+                screen_y = (food[1] - camera_y) * self.tile_size
+                if -self.tile_size < screen_x < self.width and -self.tile_size < screen_y < self.height:
+                    pygame.draw.rect(surface, food_color,
+                                    (screen_x + 2 + offset, 
+                                     screen_y + 2 + offset,
+                                     current_food_size, current_food_size))
         
         snake_color = (100, 255, 100)
         head_color = (150, 255, 150)
+        eye_color = (0, 0, 0)
+        tongue_color = (255, 100, 100)
         
         head = self.snake[0]
-        pygame.draw.rect(surface, head_color,
-                        (head[0] * self.tile_size + 1, head[1] * self.tile_size + 1,
-                         self.tile_size - 2, self.tile_size - 2))
+        screen_x = (head[0] - camera_x) * self.tile_size
+        screen_y = (head[1] - camera_y) * self.tile_size
+        if -self.tile_size < screen_x < self.width and -self.tile_size < screen_y < self.height:
+            pygame.draw.rect(surface, head_color,
+                            (screen_x + 1, screen_y + 1,
+                             self.tile_size - 2, self.tile_size - 2))
+            
+            eye_size = 3
+            eye_offset = 7
+            if self.direction == (1, 0):  # Prawo
+                pygame.draw.circle(surface, eye_color, (screen_x + self.tile_size - eye_offset, screen_y + eye_offset), eye_size)
+                pygame.draw.circle(surface, eye_color, (screen_x + self.tile_size - eye_offset, screen_y + self.tile_size - eye_offset), eye_size)
+                pygame.draw.line(surface, tongue_color, (screen_x + self.tile_size - 2, screen_y + self.tile_size // 2), 
+                               (screen_x + self.tile_size + 4, screen_y + self.tile_size // 2), 2)
+            elif self.direction == (-1, 0):  # Lewo
+                pygame.draw.circle(surface, eye_color, (screen_x + eye_offset, screen_y + eye_offset), eye_size)
+                pygame.draw.circle(surface, eye_color, (screen_x + eye_offset, screen_y + self.tile_size - eye_offset), eye_size)
+                pygame.draw.line(surface, tongue_color, (screen_x + 2, screen_y + self.tile_size // 2), 
+                               (screen_x - 4, screen_y + self.tile_size // 2), 2)
+            elif self.direction == (0, 1):  # Dół
+                pygame.draw.circle(surface, eye_color, (screen_x + eye_offset, screen_y + self.tile_size - eye_offset), eye_size)
+                pygame.draw.circle(surface, eye_color, (screen_x + self.tile_size - eye_offset, screen_y + self.tile_size - eye_offset), eye_size)
+                pygame.draw.line(surface, tongue_color, (screen_x + self.tile_size // 2, screen_y + self.tile_size - 2), 
+                               (screen_x + self.tile_size // 2, screen_y + self.tile_size + 4), 2)
+            elif self.direction == (0, -1):  # Góra
+                pygame.draw.circle(surface, eye_color, (screen_x + eye_offset, screen_y + eye_offset), eye_size)
+                pygame.draw.circle(surface, eye_color, (screen_x + self.tile_size - eye_offset, screen_y + eye_offset), eye_size)
+                pygame.draw.line(surface, tongue_color, (screen_x + self.tile_size // 2, screen_y + 2), 
+                               (screen_x + self.tile_size // 2, screen_y - 4), 2)
         
         for segment in self.snake[1:]:
-            pygame.draw.rect(surface, snake_color,
-                           (segment[0] * self.tile_size + 1, segment[1] * self.tile_size + 1,
-                            self.tile_size - 2, self.tile_size - 2))
+            screen_x = (segment[0] - camera_x) * self.tile_size
+            screen_y = (segment[1] - camera_y) * self.tile_size
+            if -self.tile_size < screen_x < self.width and -self.tile_size < screen_y < self.height:
+                pygame.draw.rect(surface, snake_color,
+                               (screen_x + 1, screen_y + 1,
+                                self.tile_size - 2, self.tile_size - 2))
+
+
+def draw_hunger_bar(surface, hunger, width, lang_dict):
+    """Draw a hunger bar at the bottom center of the screen"""
+    bar_width = 400
+    bar_height = 30
+    bar_x = (width - bar_width) // 2
+    bar_y = 680
+    
+    pygame.draw.rect(surface, (100, 0, 0), (bar_x, bar_y, bar_width, bar_height))
+    
+    fill_width = (hunger / 100) * bar_width
+    
+    if hunger > 50:
+        color = (0, 255, 0)
+    elif hunger > 25:
+        color = (255, 200, 0)
+    else:
+        color = (255, 0, 0)
+    
+    pygame.draw.rect(surface, color, (bar_x, bar_y, fill_width, bar_height))
+    
+    pygame.draw.rect(surface, (240, 240, 240), (bar_x, bar_y, bar_width, bar_height), 2)
+    
+    font = pygame.font.SysFont("arial", 16, bold=True)
+    label_text = lang_dict["hunger"].upper()
+    label = font.render(label_text, True, (240, 240, 240))
+    
+    label_x = bar_x + (bar_width - label.get_width()) // 2
+    label_y = bar_y + (bar_height - label.get_height()) // 2
+    
+    outline_color = (0, 0, 0)
+    for offset_x in [-2, 2]:
+        for offset_y in [-2, 2]:
+            outline_label = font.render(label_text, True, outline_color)
+            surface.blit(outline_label, (label_x + offset_x, label_y + offset_y))
+    
+    surface.blit(label, (label_x, label_y))
 
 
 class Button:
@@ -193,7 +488,7 @@ def main():
     pygame.init()
     pygame.mixer.init()
 
-    VERSION: str = "0.5"
+    VERSION: str = "0.7"
 
     WIDTH: int = 1280
     HEIGHT: int = 720
@@ -207,7 +502,6 @@ def main():
 
     base_dir = os.path.dirname(__file__)
     
-    # Load background
     bg_candidates = [
         os.path.join(base_dir, "assets", "background.png"),
         os.path.join(base_dir, "background.png"),
@@ -237,7 +531,6 @@ def main():
                 background = None
                 continue
 
-    # Load game over background
     game_over_bg = None
     game_over_bg_candidates = [
         os.path.join(base_dir, "assets", "game_over.png"),
@@ -255,7 +548,6 @@ def main():
             print(f"Failed to load game over background '{path}': {e}")
             continue
 
-    # Load audio files
     sounds = {}
     audio_files = {
         "explosion": "explosion.mp3",
@@ -303,7 +595,9 @@ def main():
         "restart": "Restart",
         "main_menu": "Menu główne",
         "game_over": "KONIEC GRY",
-        "retry": "Ponów"
+        "retry": "Ponów",
+        "score": "Wynik",
+        "hunger": "Głód"
     }
 
     LANG_EN: dict[str] = {
@@ -326,7 +620,9 @@ def main():
         "restart": "Restart",
         "main_menu": "Main Menu",
         "game_over": "GAME OVER",
-        "retry": "Retry"
+        "retry": "Retry",
+        "score": "Score",
+        "hunger": "Hunger"
     }
 
     current_lang: dict[str] = LANG_PL
@@ -471,7 +767,7 @@ def main():
             pygame.display.flip()
             clock.tick(60)
 
-    # GAME LOOP
+        # GAME LOOP
         if started and running:
             game = SnakeGame(WIDTH, HEIGHT)
             game_over = False
@@ -483,7 +779,6 @@ def main():
             bgm_channel = None
             bgm_tracks = ["bgm01", "bgm02", "bgm03"]
             
-            # Start playing a random BGM track
             if bgm_tracks and any(track in sounds for track in bgm_tracks):
                 current_bgm = random.choice([t for t in bgm_tracks if t in sounds])
                 bgm_channel = sounds[current_bgm].play(-1)
@@ -522,7 +817,6 @@ def main():
                             is_paused = False
                             death_time = None
                             game_over_sound_played = False
-                            # Restart BGM
                             if bgm_tracks and any(track in sounds for track in bgm_tracks):
                                 current_bgm = random.choice([t for t in bgm_tracks if t in sounds])
                                 bgm_channel = sounds[current_bgm].play(-1)
@@ -537,7 +831,6 @@ def main():
                             game_over = False
                             death_time = None
                             game_over_sound_played = False
-                            # Restart BGM
                             if bgm_tracks and any(track in sounds for track in bgm_tracks):
                                 current_bgm = random.choice([t for t in bgm_tracks if t in sounds])
                                 bgm_channel = sounds[current_bgm].play(-1)
@@ -548,29 +841,24 @@ def main():
                 if not is_paused and not game_over:
                     game_over = game.update()
                     
-                    # Play score sound when food is eaten
                     if game.food_eaten and "score" in sounds:
                         sounds["score"].play()
                     
-                    # Handle death
                     if game_over:
-                        # Stop BGM channel but let other sounds play
                         if bgm_channel:
                             bgm_channel.stop()
-                        # Play explosion sound
                         if "explosion" in sounds:
                             sounds["explosion"].play()
                         death_time = time.time()
                 
-                # Check if enough time has passed to show game over screen
                 if game_over and death_time is not None and (time.time() - death_time) < 2:
-                    # Show the game screen during the death animation
                     game.draw(screen)
                     score_font = pygame.font.SysFont("arial", 36)
-                    score_surf = score_font.render(f"Score: {game.score}", True, (240, 240, 240))
+                    score_surf = score_font.render(f"{current_lang['score']}: {game.score}", True, (240, 240, 240))
                     screen.blit(score_surf, (20, 20))
+                    
+                    draw_hunger_bar(screen, game.hunger, WIDTH, current_lang)
                 elif game_over and death_time is not None and (time.time() - death_time) >= 2:
-                    # Time to show game over screen
                     if game_over_bg:
                         screen.blit(game_over_bg, (0, 0))
                     else:
@@ -579,7 +867,6 @@ def main():
                         overlay.fill((0, 0, 0))
                         screen.blit(overlay, (0, 0))
                     
-                    # Play game over sound only once
                     if "game_over" in sounds and not game_over_sound_played:
                         sounds["game_over"].play()
                         game_over_sound_played = True
@@ -590,12 +877,13 @@ def main():
                     for b in game_over_buttons:
                         b.draw(screen, button_font, current_lang)
                 else:
-                    # Normal game rendering
                     game.draw(screen)
                     
                     score_font = pygame.font.SysFont("arial", 36)
-                    score_surf = score_font.render(f"Score: {game.score}", True, (240, 240, 240))
+                    score_surf = score_font.render(f"{current_lang['score']}: {game.score}", True, (240, 240, 240))
                     screen.blit(score_surf, (20, 20))
+                    
+                    draw_hunger_bar(screen, game.hunger, WIDTH, current_lang)
                     
                     if is_paused:
                         overlay = pygame.Surface((WIDTH, HEIGHT))
@@ -612,10 +900,8 @@ def main():
                 pygame.display.flip()
                 clock.tick(60)
             
-            # Cleanup BGM when exiting
             pygame.mixer.stop()
             
-            # Reset for next game cycle
             started = False
 
     pygame.quit()
