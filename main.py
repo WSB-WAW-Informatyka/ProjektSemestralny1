@@ -441,20 +441,24 @@ def draw_hunger_bar(surface, hunger, width, lang_dict):
     
     pygame.draw.rect(surface, (240, 240, 240), (bar_x, bar_y, bar_width, bar_height), 2)
     
-    font = pygame.font.SysFont("arial", 16, bold=True)
+    # Use larger, bold font for crisp text
+    font = pygame.font.SysFont("arial", 18, bold=True)
     label_text = lang_dict["hunger"].upper()
-    label = font.render(label_text, True, (240, 240, 240))
     
-    label_x = bar_x + (bar_width - label.get_width()) // 2
-    label_y = bar_y + (bar_height - label.get_height()) // 2
+    label_x = bar_x + (bar_width) // 2
+    label_y = bar_y + (bar_height - 18) // 2
     
+    # Draw black outline with thicker strokes for clarity
     outline_color = (0, 0, 0)
-    for offset_x in [-2, 2]:
-        for offset_y in [-2, 2]:
-            outline_label = font.render(label_text, True, outline_color)
-            surface.blit(outline_label, (label_x + offset_x, label_y + offset_y))
+    for offset_x in [-1, 0, 1]:
+        for offset_y in [-1, 0, 1]:
+            if offset_x != 0 or offset_y != 0:
+                outline_label = font.render(label_text, True, outline_color)
+                surface.blit(outline_label, (label_x - outline_label.get_width() // 2 + offset_x, label_y + offset_y))
     
-    surface.blit(label, (label_x, label_y))
+    # Draw white text on top
+    label = font.render(label_text, True, (240, 240, 240))
+    surface.blit(label, (label_x - label.get_width() // 2, label_y))
 
 
 class Button:
