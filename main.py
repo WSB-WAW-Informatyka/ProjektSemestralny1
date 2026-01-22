@@ -2,6 +2,7 @@ import os
 import sys
 import pygame
 import random
+import time
 
 class SnakeGame:
     def __init__(self, width, height):
@@ -19,6 +20,7 @@ class SnakeGame:
         self.score = 0
         self.move_counter = 0
         self.move_interval = 5
+        self.food_eaten = False
         
     def create_obstacles(self):
         obstacles = []
@@ -50,6 +52,7 @@ class SnakeGame:
     
     def update(self):
         self.move_counter += 1
+        self.food_eaten = False
         if self.move_counter < self.move_interval:
             return False
         
@@ -73,6 +76,7 @@ class SnakeGame:
         
         if new_head == self.food:
             self.score += 10
+            self.food_eaten = True
             self.food = self.spawn_food()
         else:
             self.snake.pop()
@@ -142,6 +146,7 @@ quality_setting = "high"
 
 def main():
     pygame.init()
+    pygame.mixer.init()
 
     VERSION: str = "0.3"
 
@@ -156,6 +161,8 @@ def main():
     button_font = pygame.font.SysFont("arial", 36)
 
     base_dir = os.path.dirname(__file__)
+    
+    # Load background
     bg_candidates = [
         os.path.join(base_dir, "assets", "background.png"),
         os.path.join(base_dir, "background.png"),
@@ -183,6 +190,51 @@ def main():
             except Exception as e2:
                 print(f"Pillow fallback also failed for '{path}': {e2}")
                 background = None
+                continue
+
+    # Load game over background
+    game_over_bg = None
+    game_over_bg_candidates = [
+        os.path.join(base_dir, "assets", "game_over.png"),
+        os.path.join(base_dir, "game_over.png"),
+    ]
+    for path in game_over_bg_candidates:
+        if not os.path.isfile(path):
+            continue
+        try:
+            img = pygame.image.load(path)
+            game_over_bg = pygame.transform.smoothscale(img.convert_alpha(), (WIDTH, HEIGHT))
+            print(f"Loaded game over background: {path}")
+            break
+        except Exception as e:
+            print(f"Failed to load game over background '{path}': {e}")
+            continue
+
+    # Load audio files
+    sounds = {}
+    audio_files = {
+        "explosion": "explosion.mp3",
+        "game_over": "game_over.mp3",
+        "score": "score.mp3",
+        "bgm01": "bgm01.mp3",
+        "bgm02": "bgm02.mp3",
+        "bgm03": "bgm03.mp3",
+    }
+    
+    for sound_name, filename in audio_files.items():
+        audio_candidates = [
+            os.path.join(base_dir, "assets", filename),
+            os.path.join(base_dir, filename),
+        ]
+        for path in audio_candidates:
+            if not os.path.isfile(path):
+                continue
+            try:
+                sounds[sound_name] = pygame.mixer.Sound(path)
+                print(f"Loaded sound: {sound_name} from {path}")
+                break
+            except Exception as e:
+                print(f"Failed to load sound '{filename}': {e}")
                 continue
 
     # Języki
@@ -380,6 +432,16 @@ def main():
             game_over = False
             is_paused = False
             return_to_menu = False
+            death_time = None
+            game_over_sound_played = False
+            current_bgm = None
+            bgm_channel = None
+            bgm_tracks = ["bgm01", "bgm02", "bgm03"]
+            
+            # Start playing a random BGM track
+            if bgm_tracks and any(track in sounds for track in bgm_tracks):
+                current_bgm = random.choice([t for t in bgm_tracks if t in sounds])
+                bgm_channel = sounds[current_bgm].play(-1)
             
             while running and not return_to_menu:
                 mouse = pygame.mouse.get_pos()
@@ -398,62 +460,117 @@ def main():
                     elif event.type == pygame.KEYDOWN:
                         if event.key == pygame.K_ESCAPE and not is_paused and not game_over:
                             is_paused = True
+                            if bgm_channel:
+                                bgm_channel.pause()
                         elif not is_paused and not game_over:
                             game.handle_input(event)
                     
                     if is_paused and event.type == pygame.MOUSEBUTTONDOWN:
                         if pause_continue.is_clicked(event):
                             is_paused = False
+                            if bgm_channel:
+                                bgm_channel.unpause()
                         elif pause_restart.is_clicked(event):
+                            pygame.mixer.stop()
                             game = SnakeGame(WIDTH, HEIGHT)
                             game_over = False
                             is_paused = False
+                            death_time = None
+                            game_over_sound_played = False
+                            # Restart BGM
+                            if bgm_tracks and any(track in sounds for track in bgm_tracks):
+                                current_bgm = random.choice([t for t in bgm_tracks if t in sounds])
+                                bgm_channel = sounds[current_bgm].play(-1)
                         elif pause_menu.is_clicked(event):
+                            pygame.mixer.stop()
                             return_to_menu = True
                     
                     if game_over and event.type == pygame.MOUSEBUTTONDOWN:
                         if game_over_retry.is_clicked(event):
+                            pygame.mixer.stop()
                             game = SnakeGame(WIDTH, HEIGHT)
                             game_over = False
+                            death_time = None
+                            game_over_sound_played = False
+                            # Restart BGM
+                            if bgm_tracks and any(track in sounds for track in bgm_tracks):
+                                current_bgm = random.choice([t for t in bgm_tracks if t in sounds])
+                                bgm_channel = sounds[current_bgm].play(-1)
                         elif game_over_menu.is_clicked(event):
+                            pygame.mixer.stop()
                             return_to_menu = True
                 
                 if not is_paused and not game_over:
                     game_over = game.update()
-                
-                game.draw(screen)
-                
-                score_font = pygame.font.SysFont("arial", 36)
-                score_surf = score_font.render(f"Score: {game.score}", True, (240, 240, 240))
-                screen.blit(score_surf, (20, 20))
-                
-                if is_paused:
-                    overlay = pygame.Surface((WIDTH, HEIGHT))
-                    overlay.set_alpha(150)
-                    overlay.fill((0, 0, 0))
-                    screen.blit(overlay, (0, 0))
                     
-                    pause_title = title_font.render(current_lang["pause"], True, (240, 240, 240))
-                    screen.blit(pause_title, ((WIDTH - pause_title.get_width()) // 2, HEIGHT // 4))
+                    # Play score sound when food is eaten
+                    if game.food_eaten and "score" in sounds:
+                        sounds["score"].play()
                     
-                    for b in pause_buttons:
-                        b.draw(screen, button_font, current_lang)
+                    # Handle death
+                    if game_over:
+                        # Stop BGM channel but let other sounds play
+                        if bgm_channel:
+                            bgm_channel.stop()
+                        # Play explosion sound
+                        if "explosion" in sounds:
+                            sounds["explosion"].play()
+                        death_time = time.time()
                 
-                if game_over:
-                    overlay = pygame.Surface((WIDTH, HEIGHT))
-                    overlay.set_alpha(150)
-                    overlay.fill((0, 0, 0))
-                    screen.blit(overlay, (0, 0))
+                # Check if enough time has passed to show game over screen
+                if game_over and death_time is not None and (time.time() - death_time) < 2:
+                    # Show the game screen during the death animation
+                    game.draw(screen)
+                    score_font = pygame.font.SysFont("arial", 36)
+                    score_surf = score_font.render(f"Score: {game.score}", True, (240, 240, 240))
+                    screen.blit(score_surf, (20, 20))
+                elif game_over and death_time is not None and (time.time() - death_time) >= 2:
+                    # Time to show game over screen
+                    if game_over_bg:
+                        screen.blit(game_over_bg, (0, 0))
+                    else:
+                        overlay = pygame.Surface((WIDTH, HEIGHT))
+                        overlay.set_alpha(150)
+                        overlay.fill((0, 0, 0))
+                        screen.blit(overlay, (0, 0))
+                    
+                    # Play game over sound only once
+                    if "game_over" in sounds and not game_over_sound_played:
+                        sounds["game_over"].play()
+                        game_over_sound_played = True
                     
                     game_over_title = title_font.render(current_lang["game_over"], True, (240, 100, 100))
                     screen.blit(game_over_title, ((WIDTH - game_over_title.get_width()) // 2, HEIGHT // 4))
                     
                     for b in game_over_buttons:
                         b.draw(screen, button_font, current_lang)
+                else:
+                    # Normal game rendering
+                    game.draw(screen)
+                    
+                    score_font = pygame.font.SysFont("arial", 36)
+                    score_surf = score_font.render(f"Score: {game.score}", True, (240, 240, 240))
+                    screen.blit(score_surf, (20, 20))
+                    
+                    if is_paused:
+                        overlay = pygame.Surface((WIDTH, HEIGHT))
+                        overlay.set_alpha(150)
+                        overlay.fill((0, 0, 0))
+                        screen.blit(overlay, (0, 0))
+                        
+                        pause_title = title_font.render(current_lang["pause"], True, (240, 240, 240))
+                        screen.blit(pause_title, ((WIDTH - pause_title.get_width()) // 2, HEIGHT // 4))
+                        
+                        for b in pause_buttons:
+                            b.draw(screen, button_font, current_lang)
                 
                 pygame.display.flip()
                 clock.tick(60)
             
+            # Cleanup BGM when exiting
+            pygame.mixer.stop()
+            
+            # Reset for next game cycle
             started = False
 
     pygame.quit()
