@@ -24,11 +24,14 @@ class Button:
         return event.type == pygame.MOUSEBUTTONDOWN and self.is_hovered
 
 
-def draw_hunger_bar(surface, hunger, width, lang_dict):
+def draw_hunger_bar(surface, hunger, width, lang_dict, height=None):
     bar_width = 400
     bar_height = 30
     bar_x = (width - bar_width) // 2
-    bar_y = 680
+    
+    if height is None:
+        height = surface.get_height()
+    bar_y = height - 40
     
     pygame.draw.rect(surface, (100, 0, 0), (bar_x, bar_y, bar_width, bar_height))
     

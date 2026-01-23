@@ -7,7 +7,17 @@ class SnakeGame:
     def __init__(self, width, height):
         self.width = width
         self.height = height
-        self.tile_size = 30
+        
+        # Calculate resolution scale factor (base resolution is 1280x720)
+        base_width = 1280
+        base_height = 720
+        scale_x = width / base_width
+        scale_y = height / base_height
+        resolution_scale = (scale_x + scale_y) / 2
+        
+        # Scale tile size to keep logical map size consistent
+        self.tile_size = max(20, int(30 * resolution_scale))
+        
         self.viewport_width = width // self.tile_size 
         self.viewport_height = height // self.tile_size
         self.grid_width = self.viewport_width * 3 
@@ -21,7 +31,8 @@ class SnakeGame:
         self.food_spawn_times = {food: time.time() for food in self.foods}
         self.score = 0
         self.move_counter = 0
-        self.move_interval = 5
+        # More aggressive scaling for better feel on higher resolutions
+        self.move_interval = max(1, int(6 / resolution_scale))
         self.food_eaten = False
         
         self.hunger = 100
